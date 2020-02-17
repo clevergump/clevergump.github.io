@@ -1,1 +1,0 @@
-# clevergump.github.io
