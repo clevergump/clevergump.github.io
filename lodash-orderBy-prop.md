@@ -11,35 +11,35 @@ lodash源码分析--orderBy property
 本文要介绍的是下面的 API：
 
 ```js
-	/**
-     * This method is like `_.sortBy` except that it allows specifying the sort
-     * orders of the iteratees to sort by. If `orders` is unspecified, all values
-     * are sorted in ascending order. Otherwise, specify an order of "desc" for
-     * descending or "asc" for ascending sort order of corresponding values.
-     *
-     * @static
-     * @memberOf _
-     * @since 4.0.0
-     * @category Collection
-     * @param {Array|Object} collection The collection to iterate over.
-     * @param {Array[]|Function[]|Object[]|string[]} [iteratees=[_.identity]]
-     *  The iteratees to sort by.
-     * @param {string[]} [orders] The sort orders of `iteratees`.
-     * @param- {Object} [guard] Enables use as an iteratee for methods like `_.reduce`.
-     * @returns {Array} Returns the new sorted array.
-     * @example
-     *
-     * var users = [
-     *   { 'user': 'fred',   'age': 48 },
-     *   { 'user': 'barney', 'age': 34 },
-     *   { 'user': 'fred',   'age': 40 },
-     *   { 'user': 'barney', 'age': 36 }
-     * ];
-     *
-     * // Sort by `user` in ascending order and by `age` in descending order.
-     * _.orderBy(users, ['user', 'age'], ['asc', 'desc']);
-     * // => objects for [['barney', 36], ['barney', 34], ['fred', 48], ['fred', 40]]
-     */
+/**
+ * This method is like `_.sortBy` except that it allows specifying the sort
+ * orders of the iteratees to sort by. If `orders` is unspecified, all values
+ * are sorted in ascending order. Otherwise, specify an order of "desc" for
+ * descending or "asc" for ascending sort order of corresponding values.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Collection
+ * @param {Array|Object} collection The collection to iterate over.
+ * @param {Array[]|Function[]|Object[]|string[]} [iteratees=[_.identity]]
+ *  The iteratees to sort by.
+ * @param {string[]} [orders] The sort orders of `iteratees`.
+ * @param- {Object} [guard] Enables use as an iteratee for methods like `_.reduce`.
+ * @returns {Array} Returns the new sorted array.
+ * @example
+ *
+ * var users = [
+ *   { 'user': 'fred',   'age': 48 },
+ *   { 'user': 'barney', 'age': 34 },
+ *   { 'user': 'fred',   'age': 40 },
+ *   { 'user': 'barney', 'age': 36 }
+ * ];
+ *
+ * // Sort by `user` in ascending order and by `age` in descending order.
+ * _.orderBy(users, ['user', 'age'], ['asc', 'desc']);
+ * // => objects for [['barney', 36], ['barney', 34], ['fred', 48], ['fred', 40]]
+ */
 function orderBy(collection, iteratees, orders, guard)
 ```
 
@@ -110,8 +110,7 @@ console.table(orderedArr);
 对于排序时顺序相同的对象，将默认按照他们原始的先后顺序保持不变。例如：上例中，有2个对象的user属性都叫 ”barney“, 那么二者之间根据 user 属性就无法排序，那就保持他们原有的先后顺序不变。另外，也有2个对象的user属性都叫 “fred”，对他们的处理策略也是同理。对于user属性数值相同的对象，如果我们也想按照另外一个属性的数值来对他们进行进一步的排序，例如：想按照 age从大到小排序，那么我们可以这样调用：
 
 ```js
-var orderedArr = _.chain(users).cloneDeep()
-	.orderBy(['user', 'age'], ['asc', 'desc']).value();
+var orderedArr = _.chain(users).cloneDeep().orderBy(['user', 'age'], ['asc', 'desc']).value();
 console.table(orderedArr);
 ```
 
@@ -139,13 +138,16 @@ function orderBy(collection, iteratees, orders, guard) {
   if (collection == null) {
     return [];
   }
-   // 如果 iteratees 不是数组，例如: 'user', 则 iteratees 会被转换为一个数组，数组内只有一个元素，就是我们传递的形参, 即： 'user'会转换为 ['user']
+   // 如果 iteratees 不是数组，例如: 'user', 则 iteratees 会被转换为一个数组，数组内只有一个元素，就是我们传递
+   // 的形参, 即： 'user'会转换为 ['user']
   if (!isArray(iteratees)) {
     iteratees = iteratees == null ? [] : [iteratees];
   }
-  // 本文讨论的重点不在 guard，所以讨论的都是 guard都不传参的情况，即：guard为undefined，所以经过下面这句代码处理后的 orders数值不变
+  // 本文讨论的重点不在 guard，所以讨论的都是 guard都不传参的情况，即：guard为undefined，所以经过下面这句代码
+  // 处理后的 orders数值不变
   orders = guard ? undefined : orders;
-  // 如果 orders 不是数组(例如: 'asc')并且guard没有传参，则 orders 会被转换为一个数组，数组内只有一个元素，就是我们传递的形参，即： 'asc'会转换为 ['asc']
+  // 如果 orders 不是数组(例如: 'asc')并且guard没有传参，则 orders 会被转换为一个数组，数组内只有一个元素，
+  // 就是我们传递的形参，即： 'asc'会转换为 ['asc']
   if (!isArray(orders)) {
     orders = orders == null ? [] : [orders];
   }
@@ -161,7 +163,7 @@ function orderBy(collection, iteratees, orders, guard) {
 
 `baseOrderBy(['user', 'age'], ['asc', 'desc'])`
 
-2. 分析栈： orderBy->baseOrderBy
+2. <span id='baseOrderBy'>分析栈： orderBy->baseOrderBy</span>
 
 ```js
 /**
@@ -176,6 +178,15 @@ function orderBy(collection, iteratees, orders, guard) {
 // 按照例子中的实参：baseOrderBy(['user', 'age'], ['asc', 'desc'])
 function baseOrderBy(collection, iteratees, orders) {
   var index = -1;
+    // 既然是分析按照属性来排序，那么 iteratees 数组就一定不为空数组，至少含有一个属性名称，所以
+    //   iteratees.length ? iteratees : [identity] 这部分内容的结果就是 iteratees
+    // 经后边3的分析，getIteratee() === baseIteratee
+    // 经后边4的分析，baseUnary(getIteratee()) 就是一个函数：
+    //    var func1 = function(value) {
+    //    	return baseIteratee(value);
+    //    };
+    // 综上所述，下面这句代码在此次源码分析的特定假设前提下，就等效于：
+    //   iteratees = arrayMap(iteratees, func1);
   iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
 
   var result = baseMap(collection, function(value, key, collection) {
@@ -191,13 +202,25 @@ function baseOrderBy(collection, iteratees, orders) {
 }
 ```
 
-为了分析上述源码，我们必须先分析它调用的其他API源码。
+既然是分析按照属性来排序，那么 iteratees 数组就一定不为空数组，至少含有一个属性名称，所以 `iteratees.length ? iteratees : [identity]` 这句代码的结果就是 `iteratees`. 所以，
 
-3. 分析栈： orderBy->baseOrderBy->getIteratee()
+```js
+iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
+```
+
+这句代码就可以简化为
+
+```js
+iteratees = arrayMap(iteratees, baseUnary(getIteratee()));
+```
+
+此后分析的重点就是  `baseUnary(getIteratee())` 和 `arrayMap` 这两部分内容。
+
+3. <span id="getIteratee()">分析栈： orderBy->baseOrderBy->getIteratee()</span>
 
 先从getIteratee() 入手
 
-```
+```js
 /**
  * Gets the appropriate "iteratee" function. If `_.iteratee` is customized,
  * this function returns the custom method, otherwise it returns `baseIteratee`.
@@ -218,9 +241,88 @@ function getIteratee() {
  // 就取Lodash库原先定义的 iteratee 方法。
   var result = lodash.iteratee || iteratee;
   result = result === iteratee ? baseIteratee : result;
+  // 由于getIteratee()方法是在 baseOrderBy()方法内部调用的，调用时没有传参，所以 arguments.length === 0
   return arguments.length ? result(arguments[0], arguments[1]) : result;
 }
 ```
 
-看注释，“If `_.iteratee` is customized, this function returns the custom method, otherwise it returns `baseIteratee`.”  这句话差不多就能明白该方法的含义，由于整个 Lodash 库只对外暴露了一个叫做 lodash 的对象作为调用入口，该对象的别名是 _ 。既然对外暴露，那么我们就有可能对定义在该对象上的公有方法进行重写，其中就包括 lodash.iteratee （即: _.iteratee）。
+看该API本身的注释，“If `_.iteratee` is customized, this function returns the custom method, otherwise it returns `baseIteratee`.”  这句话差不多就能明白该方法的含义。由于整个 Lodash 库只对外暴露了一个叫做 lodash 的对象作为调用入口，该对象的别名是 _ 。既然对外暴露，那么我们就有可能对定义在该对象上的公有方法进行重写，其中就包括 lodash.iteratee方法。不过一般没有特别需求的情况下我们不会重写该方法。
+
+结合该API本身的注释，以及我们额外添加的注释，概括一下该方法的含义是，如果我们重写了 `lodash.iteratee`方法，则返回我们重写的方法，否则返回 `baseIteratee` 方法。
+
+分析完该方法，我们再回到 <a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a> 去分析。
+
+4. orderBy->baseUnary
+
+```js
+/**
+ * The base implementation of `_.unary` without support for storing metadata.
+ *
+ * @private
+ * @param {Function} func The function to cap arguments for.
+ * @returns {Function} Returns the new capped function.
+ */
+function baseUnary(func) {
+  return function(value) {
+    return func(value);
+  };
+}
+```
+
+baseUnary(xxx) 换句话说就是一个函数了。简单起见，我们就认为我们不会重写 lodash 库的方法，这样，3 中的 getIteratee() 其实就是 `baseIteratee`方法，那么，<a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a> 中的 `baseUnary(getIteratee())` 就可以认为是如下函数
+
+```js
+var func1 = function(value) {
+  return baseIteratee(value);
+}
+```
+
+而在 <a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a>  分析的最后，我们得出结论：
+
+```js
+iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
+```
+
+这句代码可以简化为
+
+```js
+iteratees = arrayMap(iteratees, baseUnary(getIteratee()));
+```
+
+而`baseUnary(getIteratee())` 又是上述函数 func1，那么，上述代码就可以进一步等效为：
+
+```js
+iteratees = arrayMap(iteratees, func1);
+```
+
+此时我们将分析栈再切回到  <a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a>  去进行下一个分析。
+
+5. orderBy->arrayMap
+
+```js
+/**
+ * A specialized version of `_.map` for arrays without support for iteratee
+ * shorthands.
+ *
+ * @private
+ * @param {Array} [array] The array to iterate over.
+ * @param {Function} iteratee The function invoked per iteration.
+ * @returns {Array} Returns the new mapped array.
+ */
+// 经过前面的分析，此时的实参是： (iteratees, func1)
+// 对于我们举的例子，就是：arrayMap(['user', 'age'], func1), func1 如下：
+//    var func1 = function(value) {
+//    	return baseIteratee(value);
+//    };
+function arrayMap(array, iteratee) {
+  var index = -1,
+      length = array == null ? 0 : array.length,
+      result = Array(length);
+
+  while (++index < length) {
+    result[index] = iteratee(array[index], index, array);
+  }
+  return result;
+}
+```
 
