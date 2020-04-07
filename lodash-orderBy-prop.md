@@ -1,4 +1,4 @@
-lodash源码分析--orderBy property
+lodash.js源码分析--orderBy property
 
 [TOC]
 
@@ -45,8 +45,9 @@ function orderBy(collection, iteratees, orders, guard)
 
 # 文章内容说明
 
-1. 这篇文章只讨论参数collection 是数组，并且参数 iteratees 为 string 或 string数组时的调用方式和源码解析。源码解析只讨论大致脉络，不需要深入到极端细节。
-2. 由于本文的例子采用的是基于 `chain` 方法的链式调用，所以调用时会由于collection参数提前导致省略掉 collection 的后续传参，所以实参会相对于实际API的方法签名定义集体错位。
+1. 本文使用的源码版本是 4.17.15, 下载地址: [https://github.com/lodash/lodash/releases](https://github.com/lodash/lodash/releases)
+2. 这篇文章只讨论参数collection 是数组，并且参数 iteratees 为 string 或 string数组时的调用方式和源码解析。源码解析只讨论大致脉络，不需要深入到极端细节。
+3. 由于本文的例子采用的是基于 `chain` 方法的链式调用，所以调用时会由于collection参数提前导致省略掉 collection 的后续传参，所以实参会相对于实际API的方法签名定义集体错位。
 
 # API调用方式
 
@@ -131,7 +132,7 @@ console.table(orderedArr);
 
 上源码：
 
-1. 分析栈： orderBy
+1. <span id="1">分析栈： orderBy</span>
 
 ```js
 function orderBy(collection, iteratees, orders, guard) {
@@ -163,7 +164,7 @@ function orderBy(collection, iteratees, orders, guard) {
 
 `baseOrderBy(['user', 'age'], ['asc', 'desc'])`
 
-2. <span id='baseOrderBy'>分析栈： orderBy->baseOrderBy</span>
+2. <span id="2">分析栈： orderBy->baseOrderBy</span>
 
 ```js
 /**
@@ -216,7 +217,7 @@ iteratees = arrayMap(iteratees, baseUnary(getIteratee()));
 
 此后分析的重点就是  `baseUnary(getIteratee())` 和 `arrayMap` 这两部分内容。
 
-3. <span id="getIteratee()">分析栈： orderBy->baseOrderBy->getIteratee()</span>
+3. <span id="3">分析栈： orderBy->baseOrderBy->getIteratee()</span>
 
 先从getIteratee() 入手
 
@@ -250,9 +251,9 @@ function getIteratee() {
 
 结合该API本身的注释，以及我们额外添加的注释，概括一下该方法的含义是，如果我们重写了 `lodash.iteratee`方法，则返回我们重写的方法，否则返回 `baseIteratee` 方法。
 
-分析完该方法，我们再回到 <a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a> 去分析。
+分析完该方法，我们再回到 [2. 分析栈： orderBy->baseOrderBy][2] 去分析。
 
-4. orderBy->baseUnary
+4. <span id="4">分析栈: orderBy->baseUnary</span>
 
 ```js
 /**
@@ -269,7 +270,7 @@ function baseUnary(func) {
 }
 ```
 
-baseUnary(xxx) 换句话说就是一个函数了。简单起见，我们就认为我们不会重写 lodash 库的方法，这样，3 中的 getIteratee() 其实就是 `baseIteratee`方法，那么，<a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a> 中的 `baseUnary(getIteratee())` 就可以认为是如下函数
+baseUnary(xxx) 换句话说就是一个函数了。简单起见，我们就认为我们不会重写 lodash 库的方法，这样，3 中的 getIteratee() 其实就是 `baseIteratee`方法，那么，[2. 分析栈： orderBy->baseOrderBy][2] 中的 `baseUnary(getIteratee())` 就可以认为是如下函数
 
 ```js
 var func1 = function(value) {
@@ -277,7 +278,7 @@ var func1 = function(value) {
 }
 ```
 
-而在 <a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a>  分析的最后，我们得出结论：
+而在 [2. 分析栈： orderBy->baseOrderBy][2] 分析的最后，我们得出结论：
 
 ```js
 iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
@@ -295,9 +296,9 @@ iteratees = arrayMap(iteratees, baseUnary(getIteratee()));
 iteratees = arrayMap(iteratees, func1);
 ```
 
-此时我们将分析栈再切回到  <a href='#baseOrderBy'>2. 分析栈： orderBy->baseOrderBy</a>  去进行下一个分析。
+此时我们将分析栈再切回到  [2. 分析栈： orderBy->baseOrderBy][2] 去进行下一个分析。
 
-5. orderBy->arrayMap
+5. <span id="5">分析栈: orderBy->arrayMap</span>
 
 ```js
 /**
@@ -326,3 +327,92 @@ function arrayMap(array, iteratee) {
 }
 ```
 
+源码本身很好理解, 对数组中的每个元素分别进行转换,  各自转换后的新数值就是 `iteratee(array[index], index, array)` 执行的结果,  下面是进一步的推导过程:
+
+```js
+因为
+result[index] = iteratee(array[index], index, array);
+iteratee = func1 = function(value) {
+    return baseIteratee(value);
+}
+所以, 得出结论:
+result[index] = baseIteratee(result[index])
+```
+
+将上述结论使用文字说明, 就是: 数组 array 中的每个元素都需要执行 baseIteratee 操作, 并将各元素的执行结果作为各自的新数值. 结合本文分析的主题--数组依据其包含的对象的某些属性名称进行排序,  那么这里的数组其实就是属性名称的数组.  如果结合前文举例 users 的场景来说,  这里的数组 array 在转换前的内容是 ['user', 'age'],  执行完上述 arrayMap()方法后将会变为 [baseIteratee('user'), baseIteratee('age')].  所以接下来的分析重心将转向 baseIteratee 这个函数本身的逻辑.
+
+6. <span id="6">分析栈: orderBy->arrayMap->baseIteratee</span>
+
+```js
+/**
+ * The base implementation of `_.iteratee`.
+ *
+ * @private
+ * @param {*} [value=_.identity] The value to convert to an iteratee.
+ * @returns {Function} Returns the iteratee.
+ */
+// 在本文的语境中, value 就是数组中对象属性名称的字符串, 例如: users 例子中的 'user', 'age'等属性名称
+function baseIteratee(value) {
+  // Don't store the `typeof` result in a variable to avoid a JIT bug in Safari 9.
+  // See https://bugs.webkit.org/show_bug.cgi?id=156034 for more details.
+  if (typeof value == 'function') {
+    return value;
+  }
+  if (value == null) {
+    return identity;
+  }
+  if (typeof value == 'object') {
+    return isArray(value)
+      ? baseMatchesProperty(value[0], value[1])
+      : baseMatches(value);
+  }
+  // value 是string类型, 所以最终会执行下面这句代码
+  return property(value);
+}
+```
+
+在本文的语境中, 该方法的参数 value 是string类型, 表示数组中对象的属性名称, 例如: users 例子中的 'user', 'age'等属性名称, 那么上述逻辑最终会执行 `return property(value);` 这句.  也就是说, 
+
+7. <span id="7">分析栈: orderBy->arrayMap->baseIteratee->property</span>
+
+```js
+/**
+ * Creates a function that returns the value at `path` of a given object.
+ *
+ * @static
+ * @memberOf _
+ * @since 2.4.0
+ * @category Util
+ * @param {Array|string} path The path of the property to get.
+ * @returns {Function} Returns the new accessor function.
+ * @example
+ *
+ * var objects = [
+ *   { 'a': { 'b': 2 } },
+ *   { 'a': { 'b': 1 } }
+ * ];
+ *
+ * _.map(objects, _.property('a.b'));
+ * // => [2, 1]
+ *
+ * _.map(_.sortBy(objects, _.property(['a', 'b'])), 'a.b');
+ * // => [1, 2]
+ */
+// 在本文的语境中, path 就是数组中对象属性名称的字符串, 例如: users 例子中的 'user', 'age'等属性名称
+function property(path) {
+    // isKey(path)为true, toKey(path)仍为path, 所以最终返回值将是 baseProperty(path)的执行结果
+  return isKey(path) ? baseProperty(toKey(path)) : basePropertyDeep(path);
+}
+```
+
+如我们添加的注释, 上述方法的返回值将是 baseProperty(path)的执行结果, 
+
+
+
+
+
+
+
+[1]: #1
+[2]: #2
+[3]: #3
