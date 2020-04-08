@@ -179,15 +179,33 @@ function orderBy(collection, iteratees, orders, guard) {
 // 按照例子中的实参：baseOrderBy(['user', 'age'], ['asc', 'desc'])
 function baseOrderBy(collection, iteratees, orders) {
   var index = -1;
-    // 既然是分析按照属性来排序，那么 iteratees 数组就一定不为空数组，至少含有一个属性名称，所以
-    //   iteratees.length ? iteratees : [identity] 这部分内容的结果就是 iteratees
-    // 经后边3的分析，getIteratee() === baseIteratee
-    // 经后边4的分析，baseUnary(getIteratee()) 就是一个函数：
-    //    var func1 = function(value) {
-    //    	return baseIteratee(value);
-    //    };
-    // 综上所述，下面这句代码在此次源码分析的特定假设前提下，就等效于：
-    //   iteratees = arrayMap(iteratees, func1);
+  // 需要注意的是, iteratee 这个单词在lodash中经常用来表示迭代用的函数, 而在此处语境中, iteratees 
+  // 是一个字符串数组(对象属性名称的数组), 并不是函数数组.
+    
+  // 经常用来表示迭代函数的
+  // 既然是分析按照属性来排序，那么 iteratees 数组就一定不为空数组，至少含有一个属性名称，所以
+  //   iteratees.length ? iteratees : [identity] 这部分内容的结果就是 iteratees
+  // 经后边3的分析，getIteratee() === baseIteratee
+  // 经后边4的分析，baseUnary(getIteratee()) 就是一个函数：
+  //    var func1 = function(value) {
+  //    	return baseIteratee(value);
+  //    };
+  // 综上所述，下面这句 arrayMap 的代码在此次源码分析的特定假设前提下，就等效于：
+  //   iteratees = arrayMap(iteratees, func1);
+  // 经后边5,6,7,8的分析, 下面的 arrayMap 代码就是将 iteratees 这个数组中每个元素的数值分别替换为如下
+  // 函数func2, 
+  //   	var func2 = function(object) {
+  // 		return object == null ? undefined : object[key];
+  // 	};
+  // 每个 func2最终执行时的内部变量 key分别是各元素先前的数值. 由于 func2本质上是一个闭包, 它内部所
+  // 引用的参数 key定义在该闭包的作用域中, 在后续执行时其作用域能继续保持在内存中不被回收, 使得
+  // func2 具有了记忆功能, 能够记住变量 key的数值并在 func2自己执行时能够调用到它所记住的 key的数值. 
+  // 由于每个 func2记住的都是属于自己的那个变量 key的数值, 这就使得当多个 func2被调用时, 各自调用的变量
+  // key 的数值并不会发生张冠李戴的现象. 
+  // 总结来说, 在本文的语境下, iteratees 表示属性名称的数组, 下面的 arrayMap的执行就是要将
+  // iteratees 数组中的每个元素都替换为 func2, 并且让每个替换后的 func2分别记住自己对应的元素数值作为其
+  // 作用域中参数 key的数值.
+  // 	[prop1, prop2, prop3...] ==> [func2, func2, func2]  
   iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
 
   var result = baseMap(collection, function(value, key, collection) {
@@ -203,7 +221,9 @@ function baseOrderBy(collection, iteratees, orders) {
 }
 ```
 
-既然是分析按照属性来排序，那么 iteratees 数组就一定不为空数组，至少含有一个属性名称，所以 `iteratees.length ? iteratees : [identity]` 这句代码的结果就是 `iteratees`. 所以，
+需要格外注意的是, 此处语境中的参数 iteratees 这个复数单词, 和我们在 lodash 各种常用 API 中的 iteratee 这个单数单词, 二者虽然只是单复数的区别, 但数据类型和实际含义却有重大区别.  在 lodash 的常用 API 中, iteratee 常用来表示作为迭代器使用的 function类型的变量, 而此处的 iteratees 却并不是一个 function 数组,  而是一个string 数组 (表示对象属性名称的数组).  所以, 如果你想避免后续思路被误导, 你可以将此处的 iteratees 变量名更改为 props 等名称.
+
+在本文中, 既然是探讨按照属性来排序，那么 iteratees 这个表示属性名称的数组中就至少会含有一个属性名称, 即 iteratees 一定不是空数组，所以 `iteratees.length ? iteratees : [identity]` 这句代码的结果就是 `iteratees`. 所以，
 
 ```js
 iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
@@ -339,7 +359,9 @@ iteratee = func1 = function(value) {
 result[index] = baseIteratee(result[index])
 ```
 
-将上述结论使用文字说明, 就是: 数组 array 中的每个元素都需要执行 baseIteratee 操作, 并将各元素的执行结果作为各自的新数值. 结合本文分析的主题--数组依据其包含的对象的某些属性名称进行排序,  那么这里的数组其实就是属性名称的数组.  如果结合前文举例 users 的场景来说,  这里的数组 array 在转换前的内容是 ['user', 'age'],  执行完上述 arrayMap()方法后将会变为 [baseIteratee('user'), baseIteratee('age')].  所以接下来的分析重心将转向 baseIteratee 这个函数本身的逻辑.
+调用 arrayMap 函数的作用, 概括来说就是: 对一个数组 array,  我们需要对它里面的每个元素分别执行一次 baseIteratee 变换, 并将变换后的结果作为对应元素的新数值. 
+
+结合本文分析的主题--数组依据其包含的对象的某些属性名称进行排序,  那么这里的数组其实就是属性名称的数组, 所以此处就是对属性名称数组中的每个属性名称执行 baseIteratee 变换.  如果结合前文的 users 例子来说,  数组 array 在变换前的内容是 ['user', 'age'],  执行arrayMap() 变换后的结果是 [baseIteratee('user'), baseIteratee('age')].  所以接下来的分析重心将转向 baseIteratee 这个函数本身的逻辑.
 
 6. <span id="6">分析栈: orderBy->arrayMap->baseIteratee</span>
 
@@ -371,7 +393,7 @@ function baseIteratee(value) {
 }
 ```
 
-在本文的语境中, 该方法的参数 value 是string类型, 表示数组中对象的属性名称, 例如: users 例子中的 'user', 'age'等属性名称, 那么上述逻辑最终会执行 `return property(value);` 这句.  也就是说, 
+在本文的语境中, 该方法的参数 value 是string类型, 表示数组中对象的属性名称, 例如: users 例子中的 'user', 'age'等属性名称, 那么上述逻辑最终会执行 `return property(value);` 这句.  
 
 7. <span id="7">分析栈: orderBy->arrayMap->baseIteratee->property</span>
 
@@ -405,7 +427,59 @@ function property(path) {
 }
 ```
 
-如我们添加的注释, 上述方法的返回值将是 baseProperty(path)的执行结果, 
+如注释, 在本文语境中, 参数 path 就是数组中对象属性名称的字符串, 例如: users 例子中的 'user', 'age'等属性名称, 上述方法的返回值将是 baseProperty(path)的执行结果, 
+
+8. <span id="8">分析栈: orderBy->arrayMap->baseIteratee->property->baseProperty</span>
+
+```js
+/**
+ * The base implementation of `_.property` without support for deep paths.
+ *
+ * @private
+ * @param {string} key The key of the property to get.
+ * @returns {Function} Returns the new accessor function.
+ */
+function baseProperty(key) {
+  return function(object) {
+    return object == null ? undefined : object[key];
+  };
+}
+```
+
+可以将 baseProperty 函数换成如下写法:
+
+```js
+function baseProperty(key) {
+  var func2 = function(object) {
+    return object == null ? undefined : object[key];
+  };
+  return func2;
+}
+```
+
+所以, `baseProperty`函数调用的结果, 其实是一个函数 func2, 这个新函数 func2 要想执行, 还需要给它传入一个参数, 这个参数看起来既可以是一个数组, 也可以是一个普通对象.
+
+总结 3~8的分析,  [2. 分析栈： orderBy->baseOrderBy][2] 中的如下代码 
+
+```js
+iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
+```
+
+就是将 iteratees 这个数组中每个元素的数值分别替换为如下函数 func2
+
+```js
+var func2 = function(object) {
+	return object == null ? undefined : object[key];
+};
+```
+
+每个 func2 最终执行时的内部变量 key分别是各元素先前的数值. 由于 func2本质上是一个闭包, 它内部所引用的参数定义在该闭包的作用域中, 在后续执行时其作用域能继续保持在内存中不被回收, 使得 func2 具有了记忆功能, 能够记住变量 key的数值并在 func2自己执行时能够调用到它所记住的 key的数值. 由于每个 func2记住的都是属于自己的那个变量 key的数值, 这就使得当多个 func2被调用时, 各自调用的变量 key 的数值并不会发生张冠李戴的现象.  所以在本文的语境下, 这句 arrayMap 的执行就是要将 iteratees 数组中的每个元素都替换为 func2, 并且让每个替换后的 func2分别记住自己对应的元素数值作为其作用域中参数 key的数值.
+
+> [prop1, prop2, prop3...] ==> [func2, func2, func2]
+
+分析完这句代码后, 我们又回到了 [2. 分析栈： orderBy->baseOrderBy][2] 去分析下一句代码.
+
+
 
 
 
