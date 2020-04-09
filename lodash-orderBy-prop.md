@@ -206,22 +206,26 @@ function baseOrderBy(collection, iteratees, orders) {
   // iteratees 数组中的每个元素都替换为 func2, 并且让每个替换后的 func2分别记住自己对应的元素数值作为其
   // 作用域中参数 key的数值.
   // 	[prop1, prop2, prop3...] ==> [func2, func2, func2]  
-  iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
+  iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee())); // ------- (1)
 
   var result = baseMap(collection, function(value, key, collection) {
     var criteria = arrayMap(iteratees, function(iteratee) {
       return iteratee(value);
     });
     return { 'criteria': criteria, 'index': ++index, 'value': value };
-  });
+  }); // ------- (2)
 
   return baseSortBy(result, function(object, other) {
     return compareMultiple(object, other, orders);
-  });
+  }); // ------- (3)
 }
 ```
 
 需要格外注意的是, 此处语境中的参数 iteratees 这个复数单词, 和我们在 lodash 各种常用 API 中的 iteratee 这个单数单词, 二者虽然只是单复数的区别, 但数据类型和实际含义却有重大区别.  在 lodash 的常用 API 中, iteratee 常用来表示作为迭代器使用的 function类型的变量, 而此处的 iteratees 却并不是一个 function 数组,  而是一个string 数组 (表示对象属性名称的数组).  所以, 如果你想避免后续思路被误导, 你可以将此处的 iteratees 变量名更改为 props 等名称.
+
+我们将上述源码按照语句的顺序做了(1), (2), (3)...这样的序号标识, 后面就按这些序号来分析每一句代码所执行的逻辑.
+
+## 语句(1)的解析
 
 在本文中, 既然是探讨按照属性来排序，那么 iteratees 这个表示属性名称的数组中就至少会含有一个属性名称, 即 iteratees 一定不是空数组，所以 `iteratees.length ? iteratees : [identity]` 这句代码的结果就是 `iteratees`. 所以，
 
@@ -237,7 +241,7 @@ iteratees = arrayMap(iteratees, baseUnary(getIteratee()));
 
 此后分析的重点就是  `baseUnary(getIteratee())` 和 `arrayMap` 这两部分内容。
 
-3. <span id="3">分析栈： orderBy->baseOrderBy->getIteratee()</span>
+2.1 <span id="2.1">分析栈： orderBy->baseOrderBy->getIteratee()</span>
 
 先从getIteratee() 入手
 
@@ -273,7 +277,7 @@ function getIteratee() {
 
 分析完该方法，我们再回到 [2. 分析栈： orderBy->baseOrderBy][2] 去分析。
 
-4. <span id="4">分析栈: orderBy->baseUnary</span>
+2.2 <span id="2.2">分析栈: orderBy->baseUnary</span>
 
 ```js
 /**
@@ -318,7 +322,7 @@ iteratees = arrayMap(iteratees, func1);
 
 此时我们将分析栈再切回到  [2. 分析栈： orderBy->baseOrderBy][2] 去进行下一个分析。
 
-5. <span id="5">分析栈: orderBy->arrayMap</span>
+2.3 <span id="2.3">分析栈: orderBy->arrayMap</span>
 
 ```js
 /**
@@ -363,7 +367,7 @@ result[index] = baseIteratee(result[index])
 
 结合本文分析的主题--数组依据其包含的对象的某些属性名称进行排序,  那么这里的数组其实就是属性名称的数组, 所以此处就是对属性名称数组中的每个属性名称执行 baseIteratee 变换.  如果结合前文的 users 例子来说,  数组 array 在变换前的内容是 ['user', 'age'],  执行arrayMap() 变换后的结果是 [baseIteratee('user'), baseIteratee('age')].  所以接下来的分析重心将转向 baseIteratee 这个函数本身的逻辑.
 
-6. <span id="6">分析栈: orderBy->arrayMap->baseIteratee</span>
+2.4 <span id="2.4">分析栈: orderBy->arrayMap->baseIteratee</span>
 
 ```js
 /**
@@ -395,7 +399,7 @@ function baseIteratee(value) {
 
 在本文的语境中, 该方法的参数 value 是string类型, 表示数组中对象的属性名称, 例如: users 例子中的 'user', 'age'等属性名称, 那么上述逻辑最终会执行 `return property(value);` 这句.  
 
-7. <span id="7">分析栈: orderBy->arrayMap->baseIteratee->property</span>
+2.5 <span id="2.5">分析栈: orderBy->arrayMap->baseIteratee->property</span>
 
 ```js
 /**
@@ -429,7 +433,7 @@ function property(path) {
 
 如注释, 在本文语境中, 参数 path 就是数组中对象属性名称的字符串, 例如: users 例子中的 'user', 'age'等属性名称, 上述方法的返回值将是 baseProperty(path)的执行结果, 
 
-8. <span id="8">分析栈: orderBy->arrayMap->baseIteratee->property->baseProperty</span>
+2.6 <span id="2.6">分析栈: orderBy->arrayMap->baseIteratee->property->baseProperty</span>
 
 ```js
 /**
@@ -459,7 +463,7 @@ function baseProperty(key) {
 
 所以, `baseProperty`函数调用的结果, 其实是一个函数 func2, 这个新函数 func2 要想执行, 还需要给它传入一个参数, 这个参数看起来既可以是一个数组, 也可以是一个普通对象.
 
-总结 3~8的分析,  [2. 分析栈： orderBy->baseOrderBy][2] 中的如下代码 
+总结 2.1~2.6 的分析,  [2. 分析栈： orderBy->baseOrderBy][2] 中的如下代码 
 
 ```js
 iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
